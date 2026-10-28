@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Settings, Volume2, Vibrate, Zap, Moon, Gauge, Sparkles } from 'lucide-react';
+import { X, Settings, Volume2, Vibrate, Zap, Moon, Gauge, Sparkles, Mic } from 'lucide-react';
 import { AppSettings } from '../../types';
 import { sound } from '../../services/soundFx';
 
@@ -205,6 +205,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                   <div className="text-xs">{opt.label}</div>
                   <div className={`text-[10px] ${settings.voiceSensitivity === opt.id ? 'text-[#071716]/80' : 'text-[#8ea8a5]'}`}>
+                    {opt.desc}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Voice Recognition Engine Mode (iPhone / iPad PWA) */}
+          <div className="p-3 rounded-2xl bg-[#061615] border border-[#dfb15b]/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#dfb15b] flex items-center gap-1.5">
+                <Mic className="w-4 h-4" />
+                Công Nghệ Nhận Diện Micro
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#dfb15b]/15 text-[#dfb15b] border border-[#dfb15b]/30">
+                iPhone / iPad
+              </span>
+            </div>
+            <p className="text-[11px] text-[#a2beba] leading-relaxed">
+              Nếu đã thêm app vào Màn hình chính Safari (PWA), hãy chọn <strong>Micro Nhịp Niệm</strong> để hoạt động 100% mượt mà không lo bị hạn chế bởi iOS.
+            </p>
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              {[
+                { id: 'auto', label: 'Tự Động', desc: 'Khuyên dùng' },
+                { id: 'vad_mic', label: 'Micro Nhịp', desc: 'Chuẩn PWA iPhone' },
+                { id: 'speech_text', label: 'Từ Ngữ AI', desc: 'Web Speech API' }
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => handleChange('voiceEngineMode', opt.id as any)}
+                  className={`p-2 rounded-xl border text-center transition ${
+                    (settings.voiceEngineMode || 'auto') === opt.id
+                      ? 'bg-[#dfb15b] text-[#071716] font-bold border-[#dfb15b]'
+                      : 'bg-[#0b2423] text-[#cfdcda] border-[#dfb15b]/20'
+                  }`}
+                >
+                  <div className="text-xs">{opt.label}</div>
+                  <div className={`text-[10px] ${(settings.voiceEngineMode || 'auto') === opt.id ? 'text-[#071716]/80' : 'text-[#8ea8a5]'}`}>
                     {opt.desc}
                   </div>
                 </button>

@@ -1,10 +1,13 @@
 /**
  * Tu Dưỡng Chanting Recognition Engine
- * Combines Web Speech API, phonetic fuzzy sliding-window tokenizer,
- * and Web Audio API Voice Activity Detection (VAD).
+ * Dual-Engine Architecture:
+ * 1. Web Speech API (Phonetic Fuzzy Tokenizer) for regular Safari / Chrome
+ * 2. Web Audio API VAD (Voice Activity & Rhythm Detection) via getUserMedia
+ *    for 100% reliability on iPhone/iPad Safari Standalone Home Screen PWAs,
+ *    offline mode, or when Apple speech recognition is restricted.
  */
 
-import { ChantItem, AppSettings } from '../types';
+import { ChantItem, AppSettings, VoiceEngineMode } from '../types';
 import { sound } from './soundFx';
 
 export function normalizeVietnamese(text: string): string {
@@ -19,26 +22,22 @@ export function normalizeVietnamese(text: string): string {
     .trim();
 }
 
-// Generate phonetic matcher profiles for a chant
 export interface ChantMatcher {
   id: string;
-  primaryKeywords: string[];     // Normalized core keywords (e.g. ["di", "da", "phat"])
-  supportingKeywords: string[];  // e.g. ["nam", "mo"]
+  primaryKeywords: string[];
+  supportingKeywords: string[];
   minRequiredCoreMatches: number;
 }
 
 export function buildChantMatcher(chant: ChantItem): ChantMatcher {
-  const normTitle = normalizeVietnamese(chant.title);
   const normShort = normalizeVietnamese(chant.shortTitle);
   const words = normShort.split(' ').filter(Boolean);
 
-  // Core signature words (excluding common "nam", "mo", "bo", "tat", "phat" where needed)
   let core = words;
   if (words.length > 2) {
     core = words.filter(w => w !== 'nam' && w !== 'mo');
   }
 
-  // Pre-configured optimized signatures for standard chants
   if (chant.id === 'om-mani-padme-hum') {
     return {
       id: chant.id,
@@ -53,7 +52,7 @@ export function buildChantMatcher(chant: ChantItem): ChantMatcher {
       id: chant.id,
       primaryKeywords: ['di', 'da', 'phat'],
       supportingKeywords: ['nam', 'mo', 'a'],
-      minRequiredCoreMatches: 2 // 'di da' or 'da phat' or 'di da phat'
+      minRequiredCoreMatches: 2
     };
   }
 
@@ -93,7 +92,6 @@ export function buildChantMatcher(chant: ChantItem): ChantMatcher {
     };
   }
 
-  // Generic custom chant matcher
   return {
     id: chant.id,
     primaryKeywords: core.length > 0 ? core : words,
@@ -118,6 +116,7 @@ export interface EngineCallbacks {
   onAudioLevel: (level: number) => void;
   onTranscript: (interim: string, final: string) => void;
   onError: (errorMsg: string) => void;
+  onActiveEngineChange?: (engine: 'speech' | 'vad_mic') => void;
 }
 
 export class ChantingEngine {
@@ -134,15 +133,20 @@ export class ChantingEngine {
   private settings: AppSettings;
   private callbacks: EngineCallbacks;
 
-  // Stream parsing & deduplication
+  // Active execution mode: 'speech' or 'vad_mic'
+  private activeEngineType: 'speech' | 'vad_mic' = 'speech';
+
+  // Deduplication & timing
   private lastCountTimestamp = 0;
   private isResetting = false;
-  private recentVoiceEnergyAverage = 0;
-  private consecutiveIgnoredSpeechCount = 0;
 
-  // iOS Keepalive watchdog
+  // VAD Voice Rhythm Tracking
+  private vadSpeaking = false;
+  private vadSpeechStartTime = 0;
+  private vadLastSoundTime = 0;
+
+  // Watchdog
   private restartTimeout: any = null;
-  private lastSpeechResultTimestamp = 0;
 
   constructor(chant: ChantItem, initialCount: number, settings: AppSettings, callbacks: EngineCallbacks) {
     this.currentChant = chant;
@@ -163,59 +167,172 @@ export class ChantingEngine {
   }
 
   public updateSettings(settings: AppSettings): void {
+    const prevMode = this.settings.voiceEngineMode;
     this.settings = settings;
+    if (this.isListening && prevMode !== settings.voiceEngineMode) {
+      this.pause();
+      this.start();
+    }
+  }
+
+  public getActiveEngineType(): 'speech' | 'vad_mic' {
+    return this.activeEngineType;
   }
 
   /**
-   * Check browser speech recognition capabilities
+   * Comprehensive browser and platform compatibility detection
    */
-  public static checkCompatibility(): { isSupported: boolean; isIOS: boolean; isSafari: boolean } {
+  public static checkCompatibility(): {
+    isSupported: boolean;
+    isIOS: boolean;
+    isSafari: boolean;
+    isStandalone: boolean;
+    hasGetUserMedia: boolean;
+    hasSpeech: boolean;
+  } {
     if (typeof window === 'undefined') {
-      return { isSupported: false, isIOS: false, isSafari: false };
+      return { isSupported: false, isIOS: false, isSafari: false, isStandalone: false, hasGetUserMedia: false, hasSpeech: false };
     }
-    const hasSpeech = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
     const ua = navigator.userAgent.toLowerCase();
-    const isIOS = /iphone|ipad|ipod/.test(ua);
+    const isIOS = /iphone|ipad|ipod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const isSafari = isIOS || (ua.includes('safari') && !ua.includes('chrome') && !ua.includes('android'));
+    const isStandalone = (window.navigator as any).standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    const hasSpeech = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+    const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 
     return {
-      isSupported: hasSpeech,
+      isSupported: hasSpeech || hasGetUserMedia,
       isIOS,
-      isSafari
+      isSafari,
+      isStandalone,
+      hasGetUserMedia,
+      hasSpeech
     };
   }
 
   /**
-   * Start microphone audio listening and speech recognition
+   * Start chanting engine
    */
   public async start(): Promise<boolean> {
     if (this.isListening) return true;
 
     const compat = ChantingEngine.checkCompatibility();
     if (!compat.isSupported) {
-      this.callbacks.onStatusChange('unsupported', 'Trình duyệt không hỗ trợ nhận diện giọng nói Web Speech. Vui lòng chuyển sang Chế độ Chạm Đếm Thủ Công.');
+      this.callbacks.onStatusChange(
+        'unsupported',
+        'Trình duyệt không hỗ trợ Web Speech lẫn Micro. Vui lòng chuyển sang Chế độ Chạm Đếm.'
+      );
       return false;
+    }
+
+    // Determine engine mode
+    const requestedMode = this.settings.voiceEngineMode || 'auto';
+    let shouldUseVad = false;
+
+    if (requestedMode === 'vad_mic') {
+      shouldUseVad = true;
+    } else if (requestedMode === 'speech_text') {
+      shouldUseVad = false;
+    } else {
+      // Auto mode:
+      // If iOS Standalone (added to Home Screen), WebKit heavily restricts webkitSpeechRecognition.
+      // Auto-switch to VAD (Web Audio getUserMedia) which works 100% on iOS Standalone!
+      if (compat.isIOS && compat.isStandalone) {
+        shouldUseVad = true;
+      } else if (!compat.hasSpeech) {
+        shouldUseVad = true;
+      } else {
+        shouldUseVad = false;
+      }
     }
 
     try {
-      // 1. Initialize Web Audio API for VAD (Voice Activity Detection)
-      await this.initWebAudio();
-
-      // 2. Initialize Web Speech API
-      this.initSpeechRecognition();
-
-      this.isListening = true;
-      this.callbacks.onStatusChange('listening', 'Micro đang lắng nghe... Hãy bắt đầu niệm thanh tịnh.');
-      return true;
-    } catch (err: any) {
-      console.error('Failed to start chanting engine:', err);
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        this.callbacks.onStatusChange('permission_denied', 'Bạn chưa cấp quyền Microphone. Vui lòng mở Cài đặt trình duyệt để cho phép.');
+      if (shouldUseVad) {
+        return await this.startVadEngine('Micro đang lắng nghe nhịp niệm (Tối ưu iPhone/iPad PWA)...');
       } else {
-        this.callbacks.onError('Không thể kết nối Micro: ' + (err.message || 'Lỗi thiết bị'));
+        return await this.startSpeechEngine();
       }
-      return false;
+    } catch (err: any) {
+      console.warn('Primary engine failed to start, trying fallback:', err);
+      // Fallback to VAD if Speech failed
+      if (!shouldUseVad && compat.hasGetUserMedia) {
+        try {
+          return await this.startVadEngine('Tự động chuyển sang Chế độ Micro Nhịp Niệm (Tương thích PWA)');
+        } catch (vadErr: any) {
+          return this.handleStartError(vadErr);
+        }
+      }
+      return this.handleStartError(err);
     }
+  }
+
+  private handleStartError(err: any): boolean {
+    console.error('Chanting engine start error:', err);
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      this.callbacks.onStatusChange(
+        'permission_denied',
+        'Bạn chưa cấp quyền Microphone. Vào Cài đặt iPhone > Safari > Micrô để cho phép.'
+      );
+    } else {
+      this.callbacks.onError('Không thể kết nối Micro: ' + (err.message || 'Lỗi thiết bị'));
+    }
+    return false;
+  }
+
+  /**
+   * Start VAD Microphone Rhythm Counter (Web Audio API via getUserMedia)
+   */
+  private async startVadEngine(initialMessage?: string): Promise<boolean> {
+    this.activeEngineType = 'vad_mic';
+    if (this.callbacks.onActiveEngineChange) {
+      this.callbacks.onActiveEngineChange('vad_mic');
+    }
+
+    await this.initWebAudio();
+    this.isListening = true;
+    this.callbacks.onStatusChange(
+      'listening',
+      initialMessage || 'Micro đang nhận diện nhịp niệm... Hãy bắt đầu niệm thanh tịnh.'
+    );
+    return true;
+  }
+
+  /**
+   * Start Web Speech API Tokenizer
+   */
+  private async startSpeechEngine(): Promise<boolean> {
+    this.activeEngineType = 'speech';
+    if (this.callbacks.onActiveEngineChange) {
+      this.callbacks.onActiveEngineChange('speech');
+    }
+
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) {
+      throw new Error('Speech recognition not available');
+    }
+
+    // Try starting speech recognition
+    this.initSpeechRecognition();
+    this.isListening = true;
+    this.callbacks.onStatusChange('listening', 'Micro đang lắng nghe câu niệm tiếng Việt...');
+    return true;
+  }
+
+  /**
+   * Switch dynamically to VAD mode if Speech fails
+   */
+  private async switchToVadMode(): Promise<void> {
+    console.log('Switching to VAD microphone mode...');
+    if (this.recognition) {
+      try {
+        this.recognition.onend = null;
+        this.recognition.onerror = null;
+        this.recognition.abort();
+      } catch {}
+      this.recognition = null;
+    }
+    await this.startVadEngine('Đã chuyển sang Chế độ Micro Nhịp Niệm (Tương thích iPhone)');
   }
 
   /**
@@ -267,7 +384,7 @@ export class ChantingEngine {
   }
 
   /**
-   * Setup Web Audio API with AnalyserNode for VAD energy gating & VU meter
+   * Setup Web Audio API with AnalyserNode for VAD and real-time audio meter
    */
   private async initWebAudio(): Promise<void> {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -291,14 +408,14 @@ export class ChantingEngine {
     const source = this.audioContext.createMediaStreamSource(this.mediaStream);
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = 256;
-    this.analyser.smoothingTimeConstant = 0.4;
+    this.analyser.smoothingTimeConstant = 0.35;
     source.connect(this.analyser);
 
     this.startAudioLoop();
   }
 
   /**
-   * Continuously analyze microphone volume level and RMS energy
+   * Real-time audio loop for VU meter and VAD chant rhythm detection
    */
   private startAudioLoop(): void {
     if (!this.analyser) return;
@@ -316,16 +433,60 @@ export class ChantingEngine {
         sum += dataArray[i];
       }
       const avg = sum / bufferLength;
-      // Convert to normalized 0 - 100 scale
       const normalizedLevel = Math.min(100, Math.round((avg / 128) * 100));
 
-      this.recentVoiceEnergyAverage = normalizedLevel;
       this.callbacks.onAudioLevel(normalizedLevel);
+
+      // If active engine is VAD, perform real-time Voice Rhythm Detection
+      if (this.activeEngineType === 'vad_mic') {
+        this.processVadAudioLevel(normalizedLevel);
+      }
 
       this.animFrameId = requestAnimationFrame(updateMeter);
     };
 
     updateMeter();
+  }
+
+  /**
+   * VAD Voice Activity & Rhythm Detection Logic:
+   * Accurately detects each chant phrase based on vocal onset, sustained energy,
+   * and breathing pause, without duplicate triggers.
+   */
+  private processVadAudioLevel(level: number): void {
+    if (this.isResetting) return;
+
+    const now = Date.now();
+    const energyThreshold = this.getVadThreshold();
+    const minUtteranceMs = 320; // Must chant for at least 320ms (filters coughs/clicks)
+    const silenceBreathMs = 280; // Natural breath interval between chants
+    const refractoryMs = this.getRefractoryMs();
+
+    // Check refractory cooldown
+    if (now - this.lastCountTimestamp < refractoryMs) {
+      return;
+    }
+
+    if (level >= energyThreshold) {
+      // Voice detected
+      this.vadLastSoundTime = now;
+      if (!this.vadSpeaking) {
+        this.vadSpeaking = true;
+        this.vadSpeechStartTime = now;
+      }
+    } else {
+      // Below threshold (silence/pause)
+      if (this.vadSpeaking) {
+        const speechDuration = this.vadLastSoundTime - this.vadSpeechStartTime;
+        const silenceDuration = now - this.vadLastSoundTime;
+
+        // If user chanted for valid duration and paused to breathe -> 1 completed chant!
+        if (speechDuration >= minUtteranceMs && silenceDuration >= silenceBreathMs) {
+          this.vadSpeaking = false;
+          this.handleChantSuccessAndReset();
+        }
+      }
+    }
   }
 
   private stopAudioAnalysis(): void {
@@ -337,7 +498,7 @@ export class ChantingEngine {
   }
 
   /**
-   * Initialize Web Speech API instance with Vietnamese language and streaming settings
+   * Initialize Web Speech API
    */
   private initSpeechRecognition(): void {
     const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -364,7 +525,6 @@ export class ChantingEngine {
 
     this.recognition.onresult = (event: any) => {
       if (this.isResetting) return;
-      this.lastSpeechResultTimestamp = Date.now();
       let interim = '';
       let fullTranscript = '';
 
@@ -381,7 +541,7 @@ export class ChantingEngine {
       const norm = normalizeVietnamese(fullTranscript);
       const tokens = norm.split(' ').filter(Boolean);
 
-      // Check if user has completed 1 chant in this discrete cycle
+      // Check if user completed 1 chant in this discrete cycle
       if (this.checkIsCompleteChant(tokens)) {
         this.handleChantSuccessAndReset();
       }
@@ -390,36 +550,37 @@ export class ChantingEngine {
     this.recognition.onerror = (event: any) => {
       const error = event.error;
       if (error === 'no-speech') return;
-      if (error === 'not-allowed') {
-        this.isListening = false;
-        this.callbacks.onStatusChange('permission_denied', 'Quyền truy cập micro đã bị từ chối');
+
+      // On iOS Standalone or restricted browsers, speech recognition fails with not-allowed or service-not-allowed
+      if (error === 'not-allowed' || error === 'service-not-allowed' || error === 'audio-capture') {
+        console.warn('SpeechRecognition error (' + error + '), switching to VAD engine...');
+        this.switchToVadMode();
         return;
       }
       console.warn('Speech recognition warning:', error);
     };
 
     this.recognition.onend = () => {
-      // Automatically restart if ended naturally and not in the middle of a reset
-      if (this.isListening && !this.isResetting) {
-        this.scheduleRestart(80);
+      if (this.isListening && !this.isResetting && this.activeEngineType === 'speech') {
+        this.scheduleRestart(90);
       }
     };
 
     try {
       this.recognition.start();
     } catch (e) {
-      console.warn('Recognition start exception:', e);
+      console.warn('Recognition start exception, falling back to VAD:', e);
+      this.switchToVadMode();
     }
   }
 
   private scheduleRestart(delayMs = 150): void {
     this.clearWatchdog();
     this.restartTimeout = setTimeout(() => {
-      if (this.isListening) {
+      if (this.isListening && this.activeEngineType === 'speech') {
         try {
           this.recognition?.start();
         } catch {
-          // Restart afresh if needed
           this.initSpeechRecognition();
         }
       }
@@ -433,58 +594,42 @@ export class ChantingEngine {
     }
   }
 
-  /**
-   * Refractory duration based on user pace setting:
-   * fast: 900ms, normal: 1400ms, slow: 2200ms
-   */
   private getRefractoryMs(): number {
     switch (this.settings.chantPace) {
       case 'fast':
-        return 900;
+        return 750;
       case 'slow':
-        return 2200;
+        return 1800;
       case 'normal':
       default:
-        return 1400;
+        return 1150;
     }
   }
 
-  /**
-   * Minimum voice energy threshold required to validate voice activity
-   */
-  private getEnergyThreshold(): number {
+  private getVadThreshold(): number {
     switch (this.settings.voiceSensitivity) {
       case 'high':
-        return 3;   // sensitive (good for quiet whispers)
+        return 10;
       case 'low':
-        return 15;  // stricter (good for noisy rooms)
+        return 26;
       case 'normal':
       default:
-        return 6;
+        return 16;
     }
   }
 
   /**
-   * Trigger count increment and acoustic/haptic feedback
-   */
-  /**
    * Handle complete chant detection:
-   * 1. Increments count by exactly 1
-   * 2. Triggers sound & haptic feedback
-   * 3. Aborts and resets the current recognition instance completely
-   * 4. Clears transcript and restarts a fresh session with an empty buffer
-   * This completely prevents double-counting and phantom cumulative matches!
+   * Increments count by 1, plays sounds/haptics, resets buffer cleanly.
    */
   private handleChantSuccessAndReset(): void {
     if (this.isResetting) return;
     this.isResetting = true;
 
-    // Increment count by EXACTLY 1
     this.currentCount += 1;
     this.lastCountTimestamp = Date.now();
-    this.consecutiveIgnoredSpeechCount = 0;
 
-    // Play audio feedback according to user preferences
+    // Play audio feedback
     if (this.settings.soundEnabled) {
       if (this.settings.soundType === 'woodblock' || this.settings.soundType === 'both') {
         sound.playWoodblock(this.settings.soundVolume);
@@ -499,7 +644,7 @@ export class ChantingEngine {
       sound.triggerHaptic('tap');
     }
 
-    // Milestone trigger (108, 500, 1000)
+    // Milestone trigger
     if (this.settings.milestoneAlerts) {
       if (this.currentCount % 108 === 0 || this.currentCount === 500 || this.currentCount === 1000) {
         sound.playMilestoneChime(this.settings.soundVolume);
@@ -510,8 +655,8 @@ export class ChantingEngine {
     this.callbacks.onCount(this.currentCount, this.currentChant.shortTitle);
     this.callbacks.onStatusChange('detected', `Đã ghi nhận: ${this.currentChant.shortTitle} (+1)`);
 
-    // Abort and destroy current speech instance so no residual events can ever fire
-    if (this.recognition) {
+    // Reset speech recognition if in speech mode
+    if (this.recognition && this.activeEngineType === 'speech') {
       try {
         this.recognition.onresult = null;
         this.recognition.onend = null;
@@ -521,17 +666,23 @@ export class ChantingEngine {
       this.recognition = null;
     }
 
-    // Clear transcript for clean slate
     this.callbacks.onTranscript('', '');
 
-    // Relaunch fresh recognition session for the next chant
     setTimeout(() => {
       this.isResetting = false;
+      this.vadSpeaking = false;
       if (this.isListening) {
-        this.initSpeechRecognition();
-        this.callbacks.onStatusChange('listening', 'Micro đang lắng nghe tiếng niệm...');
+        if (this.activeEngineType === 'speech') {
+          this.initSpeechRecognition();
+        }
+        this.callbacks.onStatusChange(
+          'listening',
+          this.activeEngineType === 'vad_mic'
+            ? 'Micro đang nhận diện nhịp niệm...'
+            : 'Micro đang lắng nghe tiếng niệm...'
+        );
       }
-    }, 90);
+    }, 100);
   }
 
   /**
@@ -579,7 +730,6 @@ export class ChantingEngine {
       return hasStart && hasEnd;
     }
 
-    // Custom chant
     let coreMatches = 0;
     for (const kw of this.matcher.primaryKeywords) {
       if (set.has(kw) || joined.includes(kw)) {

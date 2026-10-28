@@ -2,6 +2,24 @@ import { ChantItem } from '../types';
 
 export const DEFAULT_CHANTS: ChantItem[] = [
   {
+    id: 'om-mani-padme-hum',
+    title: 'Án Ma Ni Bát Mê Hồng (Om Mani Padme Hum)',
+    shortTitle: 'Om Mani Padme Hum',
+    category: 'chu',
+    description: 'Lục Tự Đại Minh Chân Ngôn của Đức Quán Thế Âm Bồ Tát, vi diệu tiêu trừ chướng ngại, khai tâm từ bi vô lượng.',
+    defaultTarget: 108,
+    keywords: [
+      'om mani padme hum',
+      'an ma ni bat me hong',
+      'om mani',
+      'mani padme hum',
+      'an ma ni',
+      'om ma ni',
+      'bat me hong'
+    ],
+    isCustom: false
+  },
+  {
     id: 'a-di-da-phat',
     title: 'Nam mô A Di Đà Phật',
     shortTitle: 'A Di Đà Phật',

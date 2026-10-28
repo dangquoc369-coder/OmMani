@@ -38,8 +38,8 @@ export const SessionControlBar: React.FC<SessionControlBarProps> = ({
   const isSessionStarted = isListening || isPaused;
 
   return (
-    <div className="w-full max-w-xl mx-auto px-4 mt-4 pb-6">
-      <div className="bg-[#09201f] border border-[#dfb15b]/25 rounded-2xl p-4 shadow-xl">
+    <div className="w-full max-w-xl mx-auto px-3 sm:px-4 mt-2 sm:mt-4 pb-safe">
+      <div className="bg-[#09201f] border border-[#dfb15b]/25 rounded-2xl p-3.5 sm:p-4 shadow-xl">
         {/* Session Time & Status Indicator */}
         <div className="flex items-center justify-between mb-3.5 pb-2.5 border-b border-[#dfb15b]/15 text-xs">
           <div className="flex items-center gap-1.5 text-[#dfb15b]">

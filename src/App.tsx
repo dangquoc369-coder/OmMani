@@ -48,6 +48,7 @@ export default function App() {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [interimTranscript, setInterimTranscript] = useState<string>('');
   const [lastChantDetected, setLastChantDetected] = useState<string | null>(null);
+  const [activeEngineType, setActiveEngineType] = useState<'speech' | 'vad_mic'>('speech');
 
   // 4. Modals
   const [showEditModal, setShowEditModal] = useState(false);
@@ -191,7 +192,8 @@ export default function App() {
           onStatusChange: handleStatusChange,
           onAudioLevel: handleAudioLevel,
           onTranscript: handleTranscript,
-          onError: handleEngineError
+          onError: handleEngineError,
+          onActiveEngineChange: setActiveEngineType
         }
       );
     }
@@ -222,7 +224,8 @@ export default function App() {
             onStatusChange: handleStatusChange,
             onAudioLevel: handleAudioLevel,
             onTranscript: handleTranscript,
-            onError: handleEngineError
+            onError: handleEngineError,
+            onActiveEngineChange: setActiveEngineType
           }
         );
       }
@@ -409,7 +412,7 @@ export default function App() {
         />
 
         {/* Main Chanting Workspace */}
-        <main className="flex-1 flex flex-col items-center justify-between max-w-4xl w-full mx-auto pb-4">
+        <main className="flex-1 flex flex-col items-center justify-between max-w-5xl w-full mx-auto px-3 sm:px-6">
           {/* Chant Title Selector */}
           <ChantSelector
             chants={chants}
@@ -450,7 +453,9 @@ export default function App() {
             statusMessage={engineStatusMsg}
             interimTranscript={interimTranscript}
             audioLevel={audioLevel}
+            activeEngineType={activeEngineType}
             onRequestMicPermission={handleStartSession}
+            onOpenSettings={() => setShowSettingsModal(true)}
           />
 
           {/* Bottom Session Controls */}

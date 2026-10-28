@@ -36,6 +36,8 @@ export interface DailyStat {
   sessionCount: number;
 }
 
+export type VoiceEngineMode = 'auto' | 'vad_mic' | 'speech_text';
+
 export interface AppSettings {
   soundEnabled: boolean;
   soundType: 'woodblock' | 'bell' | 'both' | 'silent';
@@ -46,6 +48,7 @@ export interface AppSettings {
   allowShortPrefix: boolean; // Match "A Di Đà Phật" without needing "Nam mô"
   wakeLockEnabled: boolean;
   voiceSensitivity: 'high' | 'normal' | 'low';
+  voiceEngineMode: VoiceEngineMode; // 'auto' | 'vad_mic' | 'speech_text'
 }
 
 export interface SpeechDiagnosticInfo {

@@ -18,7 +18,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chantPace: 'normal',
   allowShortPrefix: true,
   wakeLockEnabled: true,
-  voiceSensitivity: 'normal'
+  voiceSensitivity: 'normal',
+  voiceEngineMode: 'auto'
 };
 
 export interface ActiveSessionState {

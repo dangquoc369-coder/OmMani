@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Smartphone, Mic, Share, PlusSquare, CheckCircle, ShieldCheck, HelpCircle } from 'lucide-react';
+import { X, Smartphone, Mic, Share, PlusSquare, CheckCircle, ShieldCheck, HelpCircle, Cpu, Tablet } from 'lucide-react';
 
 interface IOSGuideModalProps {
   onClose: () => void;
@@ -14,7 +14,7 @@ export const IOSGuideModal: React.FC<IOSGuideModalProps> = ({ onClose }) => {
           <div className="flex items-center gap-2">
             <Smartphone className="w-5 h-5 text-[#dfb15b]" />
             <h3 className="font-serif-sacred text-base sm:text-lg font-bold text-[#faeed1]">
-              Hướng Dẫn Sử Dụng & Cài Đặt iPhone
+              Hướng Dẫn iPhone & iPad (Safari PWA)
             </h3>
           </div>
           <button
@@ -27,65 +27,71 @@ export const IOSGuideModal: React.FC<IOSGuideModalProps> = ({ onClose }) => {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto space-y-4 my-3 pr-1 text-xs text-[#cfdcda]">
-          {/* Section 1: Feasibility Analysis */}
-          <div className="p-3.5 rounded-2xl bg-[#061615] border border-[#dfb15b]/25">
+          {/* Section 1: Home Screen PWA Mic Fix */}
+          <div className="p-3.5 rounded-2xl bg-[#061615] border border-[#dfb15b]/30">
             <h4 className="text-sm font-bold text-[#dfb15b] flex items-center gap-1.5 mb-1.5">
-              <ShieldCheck className="w-4 h-4" />
-              1. Khả Thi Nhận Diện Giọng Nói Trên iPhone (iOS)
+              <Cpu className="w-4 h-4" />
+              1. Khắc Phục Lỗi Ghi Âm Khi Lưu Vào Màn Hình Chính (PWA)
             </h4>
             <p className="text-[#a2beba] leading-relaxed mb-2">
-              Apple hỗ trợ <code>webkitSpeechRecognition</code> trên Safari (iOS 14.5 trở lên). Ứng dụng "Tu Dưỡng" được trang bị bộ giám sát tự động kích hoạt lại (Auto-Restart Watchdog) và bộ lọc âm thanh VAD của Web Audio API, giúp nhận diện liên tục mà không lo bị ngắt quãng.
+              Hệ điều hành iOS (Apple) mặc định hạn chế tính năng Siri Web Speech trong các ứng dụng lưu ngoài Màn hình chính (PWA Standalone). 
+              <strong> Tu Dưỡng đã tích hợp sẵn Bộ Đếm Micro Nhịp Niệm (VAD)</strong> chạy bằng Web Audio API trực tiếp trên thiết bị của bạn.
             </p>
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-300 bg-emerald-950/40 p-2 rounded-xl border border-emerald-500/20">
-              <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-              <span>Hoàn toàn miễn phí, xử lý giọng nói bảo mật trên máy người dùng.</span>
+            <div className="space-y-1.5 bg-[#0b2624] p-2.5 rounded-xl border border-[#dfb15b]/20 text-[11px] text-[#faeed1]">
+              <div className="flex items-center gap-1.5 text-emerald-300 font-medium">
+                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>Hoạt động 100% trên Màn hình chính iPhone & iPad.</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-emerald-300 font-medium">
+                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>Không cần internet, không gửi giọng nói lên máy chủ của Apple.</span>
+              </div>
             </div>
           </div>
 
-          {/* Section 2: PWA Installation on iPhone */}
+          {/* Section 2: How to Add to Home Screen */}
           <div className="p-3.5 rounded-2xl bg-[#061615] border border-[#dfb15b]/25">
             <h4 className="text-sm font-bold text-[#dfb15b] flex items-center gap-1.5 mb-2">
               <PlusSquare className="w-4 h-4" />
-              2. Cài Đặt App Vào Màn Hình Chính iPhone (PWA)
+              2. Cách Thêm Vào Màn Hình Chính Đúng Cách
             </h4>
             <ol className="space-y-2 list-decimal list-inside text-[#cfdcda] leading-relaxed">
               <li>
-                Mở trang web trong trình duyệt <strong>Safari</strong> trên iPhone.
+                Mở link web trong trình duyệt <strong>Safari</strong> trên iPhone/iPad.
               </li>
               <li className="flex items-center gap-1.5">
-                Nhấn vào nút <strong>Chia sẻ (Share)</strong> <Share className="w-3.5 h-3.5 inline text-[#dfb15b]" /> ở thanh công cụ dưới cùng.
+                Nhấn vào nút <strong>Chia sẻ (Share)</strong> <Share className="w-3.5 h-3.5 inline text-[#dfb15b]" /> ở thanh công cụ Safari.
               </li>
               <li>
                 Cuộn xuống và chọn <strong>"Thêm vào MH chính" (Add to Home Screen)</strong>.
               </li>
               <li>
-                Nhấn <strong>"Thêm" (Add)</strong> ở góc trên bên phải. Biểu tượng "Tu Dưỡng" hoa sen vàng sẽ xuất hiện trên màn hình như một ứng dụng độc lập không có thanh địa chỉ!
+                Nhấn <strong>"Thêm" (Add)</strong>. Ứng dụng "Tu Dưỡng" sẽ xuất hiện toàn màn hình không có thanh địa chỉ!
               </li>
             </ol>
           </div>
 
-          {/* Section 3: Mic Permissions */}
+          {/* Section 3: Permission Settings */}
           <div className="p-3.5 rounded-2xl bg-[#061615] border border-[#dfb15b]/25">
             <h4 className="text-sm font-bold text-[#dfb15b] flex items-center gap-1.5 mb-2">
               <Mic className="w-4 h-4" />
-              3. Cấp Quyền Microphone Trên Safari
+              3. Cấp Quyền Microphone Cho Safari & Màn Hình Chính
             </h4>
             <ul className="space-y-1.5 list-disc list-inside text-[#a2beba]">
-              <li>Khi bấm <strong>"BẮT ĐẦU NIỆM"</strong>, Safari sẽ hỏi <em>"Cho phép sử dụng micrô?"</em> - chọn <strong>Cho phép (Allow)</strong>.</li>
-              <li>Nếu lỡ chặn: Vào <strong>Cài đặt iPhone &gt; Safari &gt; Micrô</strong> và chuyển sang <strong>Cho phép</strong> hoặc <strong>Hỏi</strong>.</li>
+              <li>Lần đầu nhấn <strong>"BẮT ĐẦU NIỆM"</strong>, một thông báo <em>"Tu Dưỡng muốn truy cập micrô"</em> sẽ hiện lên &gt; Hãy chọn <strong>Cho phép (Allow)</strong>.</li>
+              <li>Nếu lỡ bấm Từ chối: Mở <strong>Cài đặt iPhone &gt; Safari &gt; Micrô</strong> và chuyển sang <strong>Cho phép</strong>.</li>
             </ul>
           </div>
 
-          {/* Section 4: Chanting Tips */}
+          {/* Section 4: iPad Altar Mode */}
           <div className="p-3.5 rounded-2xl bg-[#061615] border border-[#dfb15b]/25">
             <h4 className="text-sm font-bold text-[#dfb15b] flex items-center gap-1.5 mb-2">
-              <HelpCircle className="w-4 h-4" />
-              4. Mẹo Để Đếm Chính Xác Nhất
+              <Tablet className="w-4 h-4" />
+              4. Tối Ưu Cho iPad & Bàn Thờ / Bàn Tu Tập
             </h4>
             <ul className="space-y-1.5 list-disc list-inside text-[#a2beba]">
-              <li>Đặt điện thoại cách miệng khoảng 30cm - 1m trong không gian thanh tịnh.</li>
-              <li>Niệm tròn vành rõ chữ, có thể chọn tốc độ niệm <strong>Nhanh / Vừa / Chậm</strong> trong Cài đặt.</li>
-              <li>Nếu ở chốn đông người hoặc thiền đường cần yên tĩnh, hãy bật <strong>Chế Độ Chạm</strong> để đếm bằng cách chạm tay vào hoa sen.</li>
+              <li>Giao diện tự động căn chỉnh tràn viền (Safe Area), hỗ trợ cả iPad xoay ngang và xoay dọc.</li>
+              <li>Đặt iPad trên giá đỡ hoặc bàn thờ, tính năng <strong>Giữ màn hình luôn sáng (Wake Lock)</strong> trong Cài đặt sẽ giúp màn hình không bị tắt trong suốt khóa lễ.</li>
             </ul>
           </div>
         </div>
@@ -94,7 +100,7 @@ export const IOSGuideModal: React.FC<IOSGuideModalProps> = ({ onClose }) => {
         <div className="pt-3 border-t border-[#dfb15b]/15 text-right">
           <button
             onClick={onClose}
-            className="bg-[#dfb15b] hover:bg-[#caa04b] text-[#071716] font-bold text-xs px-5 py-2 rounded-xl transition shadow"
+            className="bg-[#dfb15b] hover:bg-[#caa04b] text-[#071716] font-bold text-xs px-5 py-2.5 rounded-xl transition shadow"
           >
             Đã Hiểu
           </button>

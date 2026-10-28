@@ -51,12 +51,12 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-[#071716]/90 backdrop-blur-md border-b border-[#dfb15b]/15 px-3 sm:px-6 py-3 transition-all">
-      <div className="max-w-4xl mx-auto flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-30 bg-[#071716]/95 backdrop-blur-md border-b border-[#dfb15b]/15 px-3 sm:px-6 pt-safe pb-2.5 sm:py-3 transition-all">
+      <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
         {/* Logo & App Name */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#dfb15b]/25 to-[#0e3532] border border-[#dfb15b]/40 flex items-center justify-center shadow-lg shadow-[#dfb15b]/10">
-            <svg className="w-5 h-5 text-[#dfb15b]" viewBox="0 0 24 24" fill="currentColor">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-[#dfb15b]/25 to-[#0e3532] border border-[#dfb15b]/40 flex items-center justify-center shadow-lg shadow-[#dfb15b]/10 shrink-0">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-[#dfb15b]" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 2C12 2 8 8 8 13C8 15.21 9.79 17 12 17C14.21 17 16 15.21 16 13C16 8 12 2 12 2ZM12 15C10.9 15 10 14.1 10 13C10 10.3 12 5.5 12 5.5C12 5.5 14 10.3 14 13C14 14.1 13.1 15 12 15ZM6.5 12.5C5.1 13.5 4 15.1 4 17C4 19.8 6.2 22 9 22C10.9 22 12.5 20.9 13.5 19.5C11.5 19.3 9.7 18.1 8.8 16.3C8.1 15 8.1 13.6 8.5 12.5H6.5ZM17.5 12.5C17.9 13.6 17.9 15 17.2 16.3C16.3 18.1 14.5 19.3 12.5 19.5C13.5 20.9 15.1 22 17 22C19.8 22 22 19.8 22 17C22 15.1 20.9 13.5 19.5 12.5H17.5Z" />
             </svg>
           </div>

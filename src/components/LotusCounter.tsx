@@ -64,10 +64,10 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
   const auraGlow = isListening ? Math.max(0.2, audioLevel / 80) : 0.2;
 
   return (
-    <div className="relative flex flex-col items-center justify-center my-4 sm:my-6 select-none">
+    <div className="relative flex flex-col items-center justify-center my-2 sm:my-4 md:my-6 select-none shrink-0">
       {/* Outer Glow Halo */}
       <div
-        className="absolute w-72 h-72 sm:w-96 sm:h-96 rounded-full transition-all duration-150 pointer-events-none"
+        className="absolute w-64 h-64 xs:w-72 xs:h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full transition-all duration-150 pointer-events-none"
         style={{
           background: `radial-gradient(circle, rgba(223, 177, 91, ${auraGlow * 0.4}) 0%, rgba(16, 56, 53, 0) 70%)`,
           transform: `scale(${auraScale})`
@@ -78,20 +78,20 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
       <motion.div
         whileTap={{ scale: mode === 'manual' ? 0.96 : 1 }}
         onClick={handleTap}
-        className={`relative w-64 h-64 sm:w-80 sm:h-80 rounded-full flex flex-col items-center justify-center cursor-pointer transition-shadow shadow-2xl ${
+        className={`relative w-56 h-56 xs:w-64 xs:h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-full flex flex-col items-center justify-center cursor-pointer transition-shadow shadow-2xl ${
           mode === 'manual'
             ? 'active:ring-4 active:ring-[#dfb15b]/40 bg-gradient-to-br from-[#0c2827] via-[#091e1d] to-[#061413] border-2 border-[#dfb15b]/40 hover:border-[#dfb15b]/70'
             : 'bg-gradient-to-br from-[#0b2423] via-[#081a19] to-[#04100f] border-2 border-[#dfb15b]/30'
         }`}
         style={{
           boxShadow: isListening && audioLevel > 15
-            ? '0 0 50px rgba(223, 177, 91, 0.35), inset 0 0 35px rgba(223, 177, 91, 0.2)'
+            ? '0 0 45px rgba(223, 177, 91, 0.35), inset 0 0 30px rgba(223, 177, 91, 0.2)'
             : '0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 25px rgba(223, 177, 91, 0.08)'
         }}
       >
         {/* Background Sacred Lotus Petals Geometry */}
         <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
-          <svg viewBox="0 0 200 200" className="w-56 h-56 sm:w-72 sm:h-72 animate-spin-slow">
+          <svg viewBox="0 0 200 200" className="w-48 h-48 xs:w-56 xs:h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 animate-spin-slow">
             <g stroke="#dfb15b" fill="none" strokeWidth="0.8">
               {[0, 30, 60, 90, 120, 150].map(angle => (
                 <ellipse
@@ -174,7 +174,7 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
             initial={{ scale: 0.88, opacity: 0.7 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 350, damping: 20 }}
-            className="font-serif-sacred text-6xl sm:text-7xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-[#ffffff] via-[#faeed1] to-[#dfb15b] drop-shadow-md py-1"
+            className="font-serif-sacred text-5xl xs:text-6xl sm:text-7xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-[#ffffff] via-[#faeed1] to-[#dfb15b] drop-shadow-md py-1"
           >
             {count.toLocaleString('vi-VN')}
           </motion.div>
