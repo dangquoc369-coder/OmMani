@@ -217,6 +217,19 @@ export class ChantingEngine {
   public async start(): Promise<boolean> {
     if (this.isListening) return true;
 
+    // Immediately create / resume AudioContext synchronously in user gesture callstack
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!this.audioContext && AudioContextClass) {
+        this.audioContext = new AudioContextClass();
+      }
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        this.audioContext.resume().catch(() => {});
+      }
+    } catch (e) {
+      console.warn('AudioContext init note:', e);
+    }
+
     const compat = ChantingEngine.checkCompatibility();
     if (!compat.isSupported) {
       this.callbacks.onStatusChange(
@@ -236,11 +249,11 @@ export class ChantingEngine {
       shouldUseVad = false;
     } else {
       // Auto mode:
-      // If iOS Standalone (added to Home Screen), WebKit heavily restricts webkitSpeechRecognition.
-      // Auto-switch to VAD (Web Audio getUserMedia) which works 100% on iOS Standalone!
-      if (compat.isIOS && compat.isStandalone) {
-        shouldUseVad = true;
-      } else if (!compat.hasSpeech) {
+      // CRITICAL ON iOS / Safari (iPhone, iPad, iPod, Home Screen Standalone PWA):
+      // WebKit's SpeechRecognition is either unsupported in PWA mode, requires Siri server
+      // entitlements that Apple blocks in webclips, or dies after 5 seconds.
+      // Web Audio API VAD (via getUserMedia) is 100% reliable on iOS (identical to AudioLab test)!
+      if (compat.isIOS || compat.isStandalone || !compat.hasSpeech) {
         shouldUseVad = true;
       } else {
         shouldUseVad = false;
@@ -249,12 +262,12 @@ export class ChantingEngine {
 
     try {
       if (shouldUseVad) {
-        return await this.startVadEngine('Micro đang lắng nghe nhịp niệm (Tối ưu iPhone/iPad PWA)...');
+        return await this.startVadEngine('Micro đang nhận diện nhịp niệm (Tối ưu iPhone/iPad PWA)...');
       } else {
         return await this.startSpeechEngine();
       }
     } catch (err: any) {
-      console.warn('Primary engine failed to start, trying fallback:', err);
+      console.warn('Primary engine failed to start, falling back to VAD:', err);
       // Fallback to VAD if Speech failed
       if (!shouldUseVad && compat.hasGetUserMedia) {
         try {
@@ -310,6 +323,13 @@ export class ChantingEngine {
     const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionClass) {
       throw new Error('Speech recognition not available');
+    }
+
+    // Initialize Web Audio for VU meter and fallback readiness
+    try {
+      await this.initWebAudio();
+    } catch (e) {
+      console.warn('WebAudio meter init note:', e);
     }
 
     // Try starting speech recognition
@@ -385,31 +405,44 @@ export class ChantingEngine {
 
   /**
    * Setup Web Audio API with AnalyserNode for VAD and real-time audio meter
+   * Compatible with iPhone/iPad iOS Safari standalone PWA
    */
   private async initWebAudio(): Promise<void> {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!this.audioContext) {
+    if (!this.audioContext && AudioContextClass) {
       this.audioContext = new AudioContextClass();
     }
-    if (this.audioContext.state === 'suspended') {
+    if (this.audioContext && this.audioContext.state === 'suspended') {
       await this.audioContext.resume();
     }
 
     if (!this.mediaStream) {
+      // Use standard iOS-tested audio constraints (omitting autoGainControl which fails on iOS WebKit)
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+          noiseSuppression: true
         }
       });
     }
 
-    const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-    this.analyser = this.audioContext.createAnalyser();
-    this.analyser.fftSize = 256;
-    this.analyser.smoothingTimeConstant = 0.35;
-    source.connect(this.analyser);
+    if (this.audioContext) {
+      const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+      this.analyser = this.audioContext.createAnalyser();
+      this.analyser.fftSize = 64;
+      this.analyser.smoothingTimeConstant = 0.3;
+      source.connect(this.analyser);
+
+      // Keep iOS WebKit audio thread processing active without feedback
+      try {
+        const silentGain = this.audioContext.createGain();
+        silentGain.gain.value = 0;
+        this.analyser.connect(silentGain);
+        silentGain.connect(this.audioContext.destination);
+      } catch (e) {
+        console.warn('Silent gain note:', e);
+      }
+    }
 
     this.startAudioLoop();
   }
@@ -458,8 +491,8 @@ export class ChantingEngine {
 
     const now = Date.now();
     const energyThreshold = this.getVadThreshold();
-    const minUtteranceMs = 320; // Must chant for at least 320ms (filters coughs/clicks)
-    const silenceBreathMs = 280; // Natural breath interval between chants
+    const minUtteranceMs = 280; // Must chant for at least 280ms (filters coughs/clicks)
+    const silenceBreathMs = 260; // Natural breath interval between chants
     const refractoryMs = this.getRefractoryMs();
 
     // Check refractory cooldown
@@ -609,12 +642,12 @@ export class ChantingEngine {
   private getVadThreshold(): number {
     switch (this.settings.voiceSensitivity) {
       case 'high':
-        return 10;
+        return 8;
       case 'low':
-        return 26;
+        return 22;
       case 'normal':
       default:
-        return 16;
+        return 14;
     }
   }
 

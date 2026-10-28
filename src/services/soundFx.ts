@@ -20,6 +20,10 @@ class SoundSynthesizer {
     return this.ctx;
   }
 
+  public resumeContext(): void {
+    this.getAudioContext();
+  }
+
   /**
    * Synthesize resonant wooden temple block (Tiếng Mõ Tụng Kinh)
    * Warm hollow wood knock with fast acoustic decay and body resonance.

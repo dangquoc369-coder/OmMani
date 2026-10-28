@@ -213,6 +213,9 @@ export default function App() {
       sessionStartTimeRef.current = new Date().toISOString();
     }
 
+    // Immediately unlock/resume sound context on user touch
+    sound.resumeContext();
+
     if (mode === 'voice') {
       if (!engineRef.current) {
         engineRef.current = new ChantingEngine(
@@ -391,13 +394,13 @@ export default function App() {
   }, [mode, count, showEditModal, showAddModal]);
 
   return (
-    <div className="min-h-screen bg-[#071716] text-[#f7f5ed] flex flex-col justify-between selection:bg-[#dfb15b]/30">
+    <div className="min-h-screen bg-[#071716] text-[#f7f5ed] flex flex-col justify-between selection:bg-[#dfb15b]/30 w-full max-w-full overflow-x-hidden">
       {/* Top Ambient Lotus Aura Background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-radial from-[#dfb15b]/10 via-[#0e3532]/20 to-transparent rounded-full blur-3xl opacity-70" />
       </div>
 
-      <div className="relative z-10 flex flex-col flex-1">
+      <div className="relative z-10 flex flex-col flex-1 w-full max-w-full overflow-x-hidden">
         {/* Navigation Header */}
         <Header
           mode={mode}
@@ -412,7 +415,7 @@ export default function App() {
         />
 
         {/* Main Chanting Workspace */}
-        <main className="flex-1 flex flex-col items-center justify-between max-w-5xl w-full mx-auto px-3 sm:px-6">
+        <main className="flex-1 flex flex-col items-center justify-between max-w-5xl w-full mx-auto px-2 xs:px-3 sm:px-6 overflow-x-hidden">
           {/* Chant Title Selector */}
           <ChantSelector
             chants={chants}
