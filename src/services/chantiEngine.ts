@@ -156,6 +156,15 @@ export class ChantingEngine {
   private vadSpeechStartTime = 0;
   private vadLastSoundTime = 0;
 
+  // VAD syllable / profile tracking (to reject phrases that don't match the chant)
+  private vadSmoothed = 0;
+  private vadPeaks = 0;
+  private vadInPeak = false;
+  private vadPeakMax = 0;
+  private vadValleyMin = 0;
+  private vadLastPeakTime = 0;
+  private vadProfile: { durationMs: number; peaks: number }[] = [];
+
   // Watchdog
   private restartTimeout: any = null;
 
@@ -171,6 +180,8 @@ export class ChantingEngine {
     this.currentChant = chant;
     this.matcher = buildChantMatcher(chant);
     this.isResetting = false;
+    this.vadProfile = [];
+    this.resetVadState();
   }
 
   public updateCount(count: number): void {
@@ -257,11 +268,13 @@ export class ChantingEngine {
     if (requestedMode === 'vad_mic') {
       shouldUseVad = true;
     } else if (requestedMode === 'speech_text') {
-      // Web Speech on iOS Safari/PWA is unreliable: force VAD there even if user picked speech_text
-      shouldUseVad = compat.isIOS || !compat.hasSpeech;
+      shouldUseVad = !compat.hasSpeech;
     } else {
-      // Auto mode: iOS / Safari / Standalone PWA -> VAD (getUserMedia works reliably)
-      shouldUseVad = compat.isIOS || compat.isStandalone || !compat.hasSpeech;
+      // Auto mode:
+      // - Home Screen PWA (standalone) or no Speech API -> VAD rhythm (speech is blocked there)
+      // - iOS Safari tab -> try REAL speech recognition first (it verifies the chant name),
+      //   and fall back to VAD automatically if Safari rejects it.
+      shouldUseVad = compat.isStandalone || !compat.hasSpeech;
     }
 
     try {
@@ -339,11 +352,14 @@ export class ChantingEngine {
     // Must be true BEFORE initWebAudio() so the VU meter loop runs
     this.isListening = true;
 
-    // Initialize Web Audio for VU meter and fallback readiness
-    try {
-      await this.initWebAudio();
-    } catch (e) {
-      console.warn('WebAudio meter init note:', e);
+    // Web Audio meter. Skipped on iOS: opening getUserMedia together with SpeechRecognition
+    // makes the two compete for the microphone on WebKit.
+    if (!ChantingEngine.checkCompatibility().isIOS) {
+      try {
+        await this.initWebAudio();
+      } catch (e) {
+        console.warn('WebAudio meter init note:', e);
+      }
     }
 
     this.initSpeechRecognition();
@@ -435,6 +451,78 @@ export class ChantingEngine {
     this.vadSpeaking = false;
     this.vadSpeechStartTime = 0;
     this.vadLastSoundTime = 0;
+    this.vadSmoothed = 0;
+    this.vadPeaks = 0;
+    this.vadInPeak = false;
+    this.vadPeakMax = 0;
+    this.vadValleyMin = 0;
+    this.vadLastPeakTime = 0;
+  }
+
+  /**
+   * Expected syllable / duration range derived from the chant title.
+   * e.g. "A Di Đà Phật" = 4 syllables; "Nam Mô A Di Đà Phật" may be said with or without "Nam Mô".
+   */
+  private getSyllableRange(): { minSyl: number; maxSyl: number; minMs: number; maxMs: number } {
+    const words = normalizeVietnamese(this.currentChant.shortTitle).split(' ').filter(Boolean);
+    const isOm = this.currentChant.id === 'om-mani-padme-hum';
+    let full = isOm ? 6 : words.length;
+    let core = full;
+    if (!isOm && words.length > 2) {
+      core = words.filter(w => w !== 'nam' && w !== 'mo').length;
+    }
+    core = Math.max(1, core);
+    full = Math.max(core, full);
+    return {
+      minSyl: Math.max(1, Math.round(core * 0.5)),
+      maxSyl: full * 2 + 1,
+      minMs: core * 110,
+      maxMs: full * 1000 + 1500
+    };
+  }
+
+  /**
+   * Decide whether a detected utterance plausibly matches the selected chant.
+   * VAD cannot recognise words, so we compare length + syllable count against
+   * (1) the chant title and (2) the user's own recent accepted chants.
+   */
+  private validateVadUtterance(durationMs: number, peaks: number): boolean {
+    const r = this.getSyllableRange();
+    if (peaks < r.minSyl || peaks > r.maxSyl) return false;
+    if (durationMs < r.minMs || durationMs > r.maxMs) return false;
+
+    if (this.vadProfile.length >= 4) {
+      const median = (arr: number[]) => {
+        const s = [...arr].sort((a, b) => a - b);
+        return s[Math.floor(s.length / 2)];
+      };
+      const medDur = median(this.vadProfile.map(p => p.durationMs));
+      const medPeaks = median(this.vadProfile.map(p => p.peaks));
+      if (durationMs < medDur * 0.55 || durationMs > medDur * 1.7) return false;
+      if (Math.abs(peaks - medPeaks) > Math.max(2, medPeaks * 0.5)) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Count energy peaks (≈ syllables) inside the current utterance.
+   */
+  private trackSyllables(level: number, thr: number, now: number): void {
+    if (this.vadInPeak) {
+      if (level > this.vadPeakMax) this.vadPeakMax = level;
+      if (level < this.vadPeakMax * 0.7) {
+        this.vadInPeak = false;
+        this.vadValleyMin = level;
+      }
+    } else {
+      if (level < this.vadValleyMin) this.vadValleyMin = level;
+      if (level >= thr && level > this.vadValleyMin * 1.35 && now - this.vadLastPeakTime >= 80) {
+        this.vadInPeak = true;
+        this.vadPeakMax = level;
+        this.vadPeaks += 1;
+        this.vadLastPeakTime = now;
+      }
+    }
   }
 
   /**
@@ -582,7 +670,7 @@ export class ChantingEngine {
    * Detects each chant phrase based on vocal onset, sustained energy,
    * and a breathing pause, without duplicate triggers.
    */
-  private processVadAudioLevel(level: number): void {
+  private processVadAudioLevel(rawLevel: number): void {
     if (this.isResetting) return;
 
     const now = Date.now();
@@ -596,22 +684,48 @@ export class ChantingEngine {
       return;
     }
 
+    // Light smoothing so syllable peaks are not split by frame noise
+    this.vadSmoothed = this.vadSmoothed * 0.5 + rawLevel * 0.5;
+    const level = this.vadSmoothed;
+
     if (level >= energyThreshold) {
       this.vadLastSoundTime = now;
       if (!this.vadSpeaking) {
         this.vadSpeaking = true;
         this.vadSpeechStartTime = now;
+        this.vadPeaks = 0;
+        this.vadInPeak = false;
+        this.vadPeakMax = 0;
+        this.vadValleyMin = 0;
+        this.vadLastPeakTime = 0;
       }
-    } else if (this.vadSpeaking) {
+    }
+
+    if (!this.vadSpeaking) return;
+
+    this.trackSyllables(level, energyThreshold, now);
+
+    if (level < energyThreshold) {
       const speechDuration = this.vadLastSoundTime - this.vadSpeechStartTime;
       const silenceDuration = now - this.vadLastSoundTime;
 
-      if (speechDuration >= minUtteranceMs && silenceDuration >= silenceBreathMs) {
+      if (silenceDuration >= silenceBreathMs) {
         this.vadSpeaking = false;
-        this.handleChantSuccessAndReset();
-      } else if (speechDuration < minUtteranceMs && silenceDuration >= silenceBreathMs) {
-        // Too short (cough / click): discard
-        this.vadSpeaking = false;
+
+        if (speechDuration < minUtteranceMs) {
+          return; // cough / click
+        }
+
+        if (this.validateVadUtterance(speechDuration, this.vadPeaks)) {
+          this.vadProfile.push({ durationMs: speechDuration, peaks: this.vadPeaks });
+          if (this.vadProfile.length > 8) this.vadProfile.shift();
+          this.handleChantSuccessAndReset();
+        } else {
+          this.callbacks.onStatusChange(
+            'listening',
+            `Nhịp niệm không khớp "${this.currentChant.shortTitle}" - chưa tính`
+          );
+        }
       }
     }
   }
