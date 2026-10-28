@@ -39,6 +39,15 @@ export function buildChantMatcher(chant: ChantItem): ChantMatcher {
   }
 
   // Pre-configured optimized signatures for standard chants
+  if (chant.id === 'om-mani-padme-hum') {
+    return {
+      id: chant.id,
+      primaryKeywords: ['om', 'mani', 'padme', 'hum', 'ma', 'ni', 'bat', 'me', 'hong'],
+      supportingKeywords: ['an', 'om', 'mani', 'padme', 'hum', 'ma', 'ni', 'bat', 'me', 'hong'],
+      minRequiredCoreMatches: 2
+    };
+  }
+
   if (chant.id === 'a-di-da-phat') {
     return {
       id: chant.id,
@@ -127,9 +136,7 @@ export class ChantingEngine {
 
   // Stream parsing & deduplication
   private lastCountTimestamp = 0;
-  private processedWordsCursor = 0;
-  private fullSessionTranscript = '';
-  private currentTurnTranscript = '';
+  private isResetting = false;
   private recentVoiceEnergyAverage = 0;
   private consecutiveIgnoredSpeechCount = 0;
 
@@ -148,7 +155,7 @@ export class ChantingEngine {
   public updateChant(chant: ChantItem): void {
     this.currentChant = chant;
     this.matcher = buildChantMatcher(chant);
-    this.processedWordsCursor = 0;
+    this.isResetting = false;
   }
 
   public updateCount(count: number): void {
@@ -349,41 +356,40 @@ export class ChantingEngine {
     this.recognition.maxAlternatives = 3;
 
     this.recognition.onstart = () => {
+      this.isResetting = false;
       if (this.isListening) {
         this.callbacks.onStatusChange('listening', 'Micro đang lắng nghe tiếng niệm...');
       }
     };
 
     this.recognition.onresult = (event: any) => {
+      if (this.isResetting) return;
       this.lastSpeechResultTimestamp = Date.now();
       let interim = '';
-      let finalTranscriptChunk = '';
+      let fullTranscript = '';
 
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const result = event.results[i];
-        const transcript = result[0].transcript;
-        if (result.isFinal) {
-          finalTranscriptChunk += ' ' + transcript;
-        } else {
+      for (let i = 0; i < event.results.length; ++i) {
+        const transcript = event.results[i][0].transcript;
+        fullTranscript += ' ' + transcript;
+        if (!event.results[i].isFinal) {
           interim += ' ' + transcript;
         }
       }
 
-      this.callbacks.onTranscript(interim.trim(), finalTranscriptChunk.trim());
+      this.callbacks.onTranscript(interim.trim(), fullTranscript.trim());
 
-      // Evaluate both interim and final results for low-latency chant counting
-      const candidateText = (finalTranscriptChunk || interim).trim();
-      if (candidateText) {
-        this.evaluateChantStream(candidateText);
+      const norm = normalizeVietnamese(fullTranscript);
+      const tokens = norm.split(' ').filter(Boolean);
+
+      // Check if user has completed 1 chant in this discrete cycle
+      if (this.checkIsCompleteChant(tokens)) {
+        this.handleChantSuccessAndReset();
       }
     };
 
     this.recognition.onerror = (event: any) => {
       const error = event.error;
-      // 'no-speech' is normal during pauses between chants
-      if (error === 'no-speech') {
-        return;
-      }
+      if (error === 'no-speech') return;
       if (error === 'not-allowed') {
         this.isListening = false;
         this.callbacks.onStatusChange('permission_denied', 'Quyền truy cập micro đã bị từ chối');
@@ -393,10 +399,9 @@ export class ChantingEngine {
     };
 
     this.recognition.onend = () => {
-      // iOS Safari and Chrome automatically end recognition sessions on brief silence.
-      // Auto-restart watchdog keeps it alive seamlessly.
-      if (this.isListening) {
-        this.scheduleRestart(100);
+      // Automatically restart if ended naturally and not in the middle of a reset
+      if (this.isListening && !this.isResetting) {
+        this.scheduleRestart(80);
       }
     };
 
@@ -430,17 +435,17 @@ export class ChantingEngine {
 
   /**
    * Refractory duration based on user pace setting:
-   * fast: 650ms, normal: 950ms, slow: 1500ms
+   * fast: 900ms, normal: 1400ms, slow: 2200ms
    */
   private getRefractoryMs(): number {
     switch (this.settings.chantPace) {
       case 'fast':
-        return 650;
+        return 900;
       case 'slow':
-        return 1450;
+        return 2200;
       case 'normal':
       default:
-        return 950;
+        return 1400;
     }
   }
 
@@ -460,143 +465,127 @@ export class ChantingEngine {
   }
 
   /**
-   * Evaluate spoken text with sliding-window phonetic matching
+   * Trigger count increment and acoustic/haptic feedback
    */
-  private evaluateChantStream(transcript: string): void {
-    const now = Date.now();
-    const refractoryMs = this.getRefractoryMs();
+  /**
+   * Handle complete chant detection:
+   * 1. Increments count by exactly 1
+   * 2. Triggers sound & haptic feedback
+   * 3. Aborts and resets the current recognition instance completely
+   * 4. Clears transcript and restarts a fresh session with an empty buffer
+   * This completely prevents double-counting and phantom cumulative matches!
+   */
+  private handleChantSuccessAndReset(): void {
+    if (this.isResetting) return;
+    this.isResetting = true;
 
-    // Prevent double counting if within refractory guard window
-    if (now - this.lastCountTimestamp < refractoryMs) {
-      return;
-    }
+    // Increment count by EXACTLY 1
+    this.currentCount += 1;
+    this.lastCountTimestamp = Date.now();
+    this.consecutiveIgnoredSpeechCount = 0;
 
-    const norm = normalizeVietnamese(transcript);
-    const words = norm.split(' ').filter(Boolean);
-
-    if (words.length === 0) return;
-
-    // Check sliding window at the tail of the recent transcript
-    // Look at the latest 2-10 words
-    const windowSlice = words.slice(Math.max(0, words.length - 10));
-    const isMatched = this.checkPhraseMatch(windowSlice);
-
-    if (isMatched) {
-      // Acoustic VAD validation: Ensure microphone actually picked up voice energy
-      // (rejects silence or ghost recognition triggers)
-      const energy = this.recentVoiceEnergyAverage;
-      const minEnergy = this.getEnergyThreshold();
-
-      if (energy < minEnergy && this.settings.voiceSensitivity !== 'high') {
-        this.callbacks.onStatusChange('ambient_noise', 'Âm thanh quá nhỏ hoặc chưa rõ tiếng...');
-        return;
+    // Play audio feedback according to user preferences
+    if (this.settings.soundEnabled) {
+      if (this.settings.soundType === 'woodblock' || this.settings.soundType === 'both') {
+        sound.playWoodblock(this.settings.soundVolume);
       }
-
-      // Valid chant completed!
-      this.consecutiveIgnoredSpeechCount = 0;
-      this.lastCountTimestamp = now;
-      this.currentCount += 1;
-
-      // Play audio feedback according to user preferences
-      if (this.settings.soundEnabled) {
-        if (this.settings.soundType === 'woodblock' || this.settings.soundType === 'both') {
-          sound.playWoodblock(this.settings.soundVolume);
-        }
-        if (this.settings.soundType === 'bell' || this.settings.soundType === 'both') {
-          sound.playTempleBell(this.settings.soundVolume * 0.7);
-        }
-      }
-
-      // Haptic vibration
-      if (this.settings.vibrationEnabled) {
-        sound.triggerHaptic('tap');
-      }
-
-      // Milestone trigger (108, 500, 1000)
-      if (this.settings.milestoneAlerts) {
-        if (this.currentCount % 108 === 0 || this.currentCount === 500 || this.currentCount === 1000) {
-          sound.playMilestoneChime(this.settings.soundVolume);
-          sound.triggerHaptic('milestone');
-        }
-      }
-
-      this.callbacks.onCount(this.currentCount, this.currentChant.shortTitle);
-      this.callbacks.onStatusChange('detected', `Đã ghi nhận: ${this.currentChant.shortTitle} (+1)`);
-
-      // Briefly return to listening status after flash
-      setTimeout(() => {
-        if (this.isListening) {
-          this.callbacks.onStatusChange('listening', 'Micro đang lắng nghe tiếng niệm...');
-        }
-      }, 1200);
-
-    } else {
-      // Spoken words did not match target chant
-      if (words.length >= 4) {
-        this.consecutiveIgnoredSpeechCount++;
-        if (this.consecutiveIgnoredSpeechCount >= 3) {
-          this.callbacks.onStatusChange('ambient_noise', `Đang nghe: "${words.slice(-3).join(' ')}" (không phải danh hiệu đang niệm)`);
-        }
+      if (this.settings.soundType === 'bell' || this.settings.soundType === 'both') {
+        sound.playTempleBell(this.settings.soundVolume * 0.7);
       }
     }
+
+    // Haptic vibration
+    if (this.settings.vibrationEnabled) {
+      sound.triggerHaptic('tap');
+    }
+
+    // Milestone trigger (108, 500, 1000)
+    if (this.settings.milestoneAlerts) {
+      if (this.currentCount % 108 === 0 || this.currentCount === 500 || this.currentCount === 1000) {
+        sound.playMilestoneChime(this.settings.soundVolume);
+        sound.triggerHaptic('milestone');
+      }
+    }
+
+    this.callbacks.onCount(this.currentCount, this.currentChant.shortTitle);
+    this.callbacks.onStatusChange('detected', `Đã ghi nhận: ${this.currentChant.shortTitle} (+1)`);
+
+    // Abort and destroy current speech instance so no residual events can ever fire
+    if (this.recognition) {
+      try {
+        this.recognition.onresult = null;
+        this.recognition.onend = null;
+        this.recognition.onerror = null;
+        this.recognition.abort();
+      } catch {}
+      this.recognition = null;
+    }
+
+    // Clear transcript for clean slate
+    this.callbacks.onTranscript('', '');
+
+    // Relaunch fresh recognition session for the next chant
+    setTimeout(() => {
+      this.isResetting = false;
+      if (this.isListening) {
+        this.initSpeechRecognition();
+        this.callbacks.onStatusChange('listening', 'Micro đang lắng nghe tiếng niệm...');
+      }
+    }, 90);
   }
 
   /**
-   * Check if an array of tokens contains the target chant's core signature
+   * Check if tokens contain a full complete chant
    */
-  private checkPhraseMatch(tokens: string[]): boolean {
-    const matcher = this.matcher;
-    const tokenSet = new Set(tokens);
+  public checkIsCompleteChant(tokens: string[]): boolean {
+    if (tokens.length < 2) return false;
+    const chantId = this.matcher.id;
     const joined = tokens.join(' ');
+    const set = new Set(tokens);
 
-    // 1. Direct substring check
-    for (const kw of matcher.primaryKeywords) {
-      if (!joined.includes(kw)) {
-        // Continue checking combinations
+    if (chantId === 'a-di-da-phat') {
+      const hasDiDa = set.has('di') || set.has('da') || joined.includes('di da') || joined.includes('adida');
+      const hasPhat = set.has('phat') || joined.includes('phat');
+      return hasDiDa && hasPhat;
+    }
+
+    if (chantId === 'om-mani-padme-hum') {
+      const hasStart = set.has('mani') || set.has('ma') || set.has('om') || set.has('an') || joined.includes('mani') || joined.includes('ma ni');
+      const hasEnd = set.has('hum') || set.has('hong') || set.has('padme') || set.has('bat') || set.has('me') || joined.includes('padme') || joined.includes('bat me');
+      return hasStart && hasEnd;
+    }
+
+    if (chantId === 'quan-the-am' || chantId === 'dai-bi-quan-am') {
+      const hasQuan = set.has('quan') || joined.includes('quan') || set.has('the');
+      const hasEnd = set.has('am') || set.has('tat') || joined.includes('am') || joined.includes('bo tat');
+      return hasQuan && hasEnd;
+    }
+
+    if (chantId === 'thich-ca-mau-ni') {
+      const hasStart = set.has('thich') || set.has('ca') || joined.includes('thich ca');
+      const hasEnd = set.has('ni') || set.has('phat') || set.has('mau') || joined.includes('mau ni') || joined.includes('phat');
+      return hasStart && hasEnd;
+    }
+
+    if (chantId === 'duoc-su-phat') {
+      const hasStart = set.has('duoc') || set.has('su') || joined.includes('duoc su');
+      const hasEnd = set.has('phat') || set.has('vuong') || set.has('quang') || joined.includes('phat');
+      return hasStart && hasEnd;
+    }
+
+    if (chantId === 'dia-tang-vuong') {
+      const hasStart = set.has('dia') || set.has('tang') || joined.includes('dia tang');
+      const hasEnd = set.has('vuong') || set.has('tat') || set.has('bo') || joined.includes('vuong') || joined.includes('bo tat');
+      return hasStart && hasEnd;
+    }
+
+    // Custom chant
+    let coreMatches = 0;
+    for (const kw of this.matcher.primaryKeywords) {
+      if (set.has(kw) || joined.includes(kw)) {
+        coreMatches++;
       }
     }
-
-    // Count how many core keywords are present in window
-    let coreCount = 0;
-    for (const kw of matcher.primaryKeywords) {
-      if (tokenSet.has(kw) || joined.includes(kw)) {
-        coreCount++;
-      }
-    }
-
-    // Specific rules per chant
-    if (matcher.id === 'a-di-da-phat') {
-      // Matches "a di da phat", "di da phat", "nam mo a di da phat", "adida phat"
-      const hasDiDa = (tokenSet.has('di') && tokenSet.has('da')) || joined.includes('dida') || joined.includes('adida');
-      const hasPhat = tokenSet.has('phat') || joined.includes('phat');
-      return hasDiDa && (hasPhat || coreCount >= 2);
-    }
-
-    if (matcher.id === 'quan-the-am' || matcher.id === 'dai-bi-quan-am') {
-      // Matches "quan the am", "quan am", "quan the am bo tat"
-      const hasQuan = tokenSet.has('quan') || joined.includes('quan');
-      const hasAm = tokenSet.has('am') || joined.includes('am');
-      const hasThe = tokenSet.has('the') || joined.includes('the');
-      return (hasQuan && hasAm) || (hasQuan && hasThe);
-    }
-
-    if (matcher.id === 'thich-ca-mau-ni') {
-      const hasThichCa = (tokenSet.has('thich') && tokenSet.has('ca')) || joined.includes('thich ca');
-      const hasMauNi = (tokenSet.has('mau') && tokenSet.has('ni')) || tokenSet.has('phat');
-      return hasThichCa || (hasMauNi && coreCount >= 2);
-    }
-
-    if (matcher.id === 'duoc-su-phat') {
-      const hasDuocSu = (tokenSet.has('duoc') && tokenSet.has('su')) || joined.includes('duoc su');
-      return hasDuocSu;
-    }
-
-    if (matcher.id === 'dia-tang-vuong') {
-      const hasDiaTang = (tokenSet.has('dia') && tokenSet.has('tang')) || joined.includes('dia tang');
-      return hasDiaTang;
-    }
-
-    // Default matching: requires at least minRequiredCoreMatches
-    return coreCount >= matcher.minRequiredCoreMatches;
+    return coreMatches >= this.matcher.minRequiredCoreMatches;
   }
 }
