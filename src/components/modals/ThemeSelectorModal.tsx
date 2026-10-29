@@ -261,6 +261,9 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
                         <img
                           src={art.imageUrl}
                           alt={art.name}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />

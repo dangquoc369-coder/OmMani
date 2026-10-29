@@ -18,12 +18,17 @@ export const BuddhistBackground: React.FC<BuddhistBackgroundProps> = ({
 }) => {
   const activeArt = useMemo(() => resolveActiveArt(themeId, artId), [themeId, artId]);
   const currentTheme = useMemo(() => getZenTheme(themeId), [themeId]);
+  const [imageFailed, setImageFailed] = React.useState(false);
 
-  if (!activeArt || !activeArt.imageUrl) {
+  React.useEffect(() => {
+    setImageFailed(false);
+  }, [activeArt?.imageUrl]);
+
+  if (!activeArt || !activeArt.imageUrl || imageFailed) {
     return null;
   }
 
-// Clamped opacity between 0.10 and 0.90 (allows deep, clear sacred artwork)
+  // Clamped opacity between 0.10 and 0.90 (allows deep, clear sacred artwork)
   const safeOpacity = Math.min(Math.max(opacity, 0.10), 0.90);
 
   // Dynamic vignette strength: when user requests high clarity, keep vignette light
@@ -43,6 +48,7 @@ export const BuddhistBackground: React.FC<BuddhistBackgroundProps> = ({
         <img
           src={activeArt.imageUrl}
           alt={activeArt.name}
+          onError={() => setImageFailed(true)}
           referrerPolicy="no-referrer"
           className={`w-full h-full object-cover object-center filter saturate-110 brightness-105 contrast-102 transition-all duration-500 ${
             enableBlur ? 'blur-[1.5px]' : ''

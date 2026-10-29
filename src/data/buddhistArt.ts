@@ -1,9 +1,17 @@
 import { BuddhistArtId, BackgroundThemeId } from '../types';
 
-import buddhaBodhiImg from '../assets/images/buddha_compassion_wisdom_1793281884385.jpg';
-import quanAmImg from '../assets/images/avalokiteshvara_lotus_1793280221731.jpg';
-import phapLuanImg from '../assets/images/dharmachakra_mandala_1793280222177.jpg';
-import coTuImg from '../assets/images/zen_pagoda_mist_1793280222491.jpg';
+// Resolve public asset path with Vite base URL support.
+// This avoids Vite bundle-time "Failed to resolve import" errors if local assets differ.
+const getArtUrl = (fileName: string): string => {
+  const base = import.meta.env.BASE_URL || './';
+  const cleanBase = base.endsWith('/') ? base : `${base}/`;
+  return `${cleanBase}assets/images/${fileName}`;
+};
+
+const buddhaBodhiImg = getArtUrl('buddha-bodhi.jpg');
+const quanAmImg = getArtUrl('quan-am.jpg');
+const phapLuanImg = getArtUrl('phap-luan.jpg');
+const coTuImg = getArtUrl('co-tu.jpg');
 
 export interface BuddhistArtItem {
   id: BuddhistArtId;
