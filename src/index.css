@@ -78,3 +78,41 @@ html, body {
 .animate-pulse-subtle {
   animation: pulse-subtle 4s ease-in-out infinite;
 }
+
+/* Vietnamese Buddhist Sacred Typography System */
+.font-serif-sacred {
+  font-family: 'Playfair Display', 'Lora', Georgia, serif;
+  font-feature-settings: "kern" 1, "liga" 1;
+  letter-spacing: 0.02em;
+}
+
+.font-mantra {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  line-height: 1.6;
+}
+
+.font-calligraphy {
+  font-family: 'Charm', 'Lora', cursive, serif;
+  letter-spacing: 0.03em;
+}
+
+.font-sans-viet {
+  font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.font-counter {
+  font-family: 'Playfair Display', 'Be Vietnam Pro', serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle sacred gold text glow for Buddhist headings */
+.text-gold-glow {
+  text-shadow: 0 0 16px rgba(223, 177, 91, 0.4), 0 0 28px rgba(223, 177, 91, 0.2);
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #faeed1 40%, #dfb15b 85%, #b3883b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

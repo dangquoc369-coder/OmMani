@@ -43,15 +43,17 @@ export const MilestoneModal: React.FC<MilestoneModalProps> = ({
           </p>
 
           {/* Buddhist Dedication of Merit Box */}
-          <div className="w-full bg-[#051413]/80 border border-[#dfb15b]/30 rounded-2xl p-3.5 text-left mb-5">
-            <p className="text-[11px] font-semibold text-[#dfb15b] mb-1">Kinh Hồi Hướng Công Đức:</p>
-            <p className="text-[11px] text-[#cfdcda] italic leading-relaxed">
+          <div className="w-full bg-[#051413]/90 border border-[#dfb15b]/35 rounded-2xl p-4 text-center mb-5 shadow-inner">
+            <p className="text-xs font-semibold text-[#dfb15b] mb-2 font-serif-sacred tracking-wider">
+              KỆ HỒI HƯỚNG CÔNG ĐỨC
+            </p>
+            <p className="text-sm sm:text-base text-[#fff5df] italic leading-relaxed font-calligraphy tracking-wide">
               "Nguyện đem công đức này,<br />
               Trang nghiêm Phật Tịnh Độ,<br />
               Trên đền bốn ơn nặng,<br />
               Dưới cứu khổ ba đường,<br />
               Nếu có ai thấy nghe,<br />
-              Đều phát lòng bồ đề,<br />
+              Đều phát tâm bồ đề,<br />
               Hết một báo thân này,<br />
               Cùng sanh cõi Cực Lạc."
             </p>

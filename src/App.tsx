@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChantItem, ChantSession, DailyStat, AppSettings, CountingMode } from './types';
+import { ChantItem, ChantSession, DailyStat, AppSettings, CountingMode, BackgroundThemeId, BuddhistArtId } from './types';
 import { StorageService, ActiveSessionState, DEFAULT_SETTINGS } from './services/storage';
 import { ChantingEngine, EngineStatus } from './services/chantiEngine';
 import { sound } from './services/soundFx';
 import { wakeLock } from './services/wakeLock';
+import { getZenTheme } from './data/themes';
+import { BuddhistBackground } from './components/BuddhistBackground';
 
 import { Header } from './components/Header';
 import { ChantSelector } from './components/ChantSelector';
@@ -20,6 +22,8 @@ import { HistoryModal } from './components/modals/HistoryModal';
 import { AudioLabModal } from './components/modals/AudioLabModal';
 import { IOSGuideModal } from './components/modals/IOSGuideModal';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { OmmaniCalendar } from './components/OmmaniCalendar';
+import { ThemeSelectorModal } from './components/modals/ThemeSelectorModal';
 
 export default function App() {
   // 1. Data Collections & Settings
@@ -59,6 +63,23 @@ export default function App() {
   const [showAudioLabModal, setShowAudioLabModal] = useState(false);
   const [showIOSGuideModal, setShowIOSGuideModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showThemeModal, setShowThemeModal] = useState(false);
+
+  // Active Serene Buddhist Theme
+  const currentTheme = getZenTheme(settings.themeId || 'tinh-do');
+
+  const handleSelectTheme = (themeId: BackgroundThemeId) => {
+    handleUpdateSettings({ ...settings, themeId });
+  };
+
+  const handleSelectArt = (bgArtId: BuddhistArtId) => {
+    handleUpdateSettings({ ...settings, bgArtId });
+  };
+
+  const handleChangeArtOpacity = (bgArtOpacity: number) => {
+    handleUpdateSettings({ ...settings, bgArtOpacity });
+  };
 
   // Refs for session management
   const engineRef = useRef<ChantingEngine | null>(null);
@@ -394,10 +415,23 @@ export default function App() {
   }, [mode, count, showEditModal, showAddModal]);
 
   return (
-    <div className="min-h-screen bg-[#071716] text-[#f7f5ed] flex flex-col justify-between selection:bg-[#dfb15b]/30 w-full max-w-full overflow-x-hidden">
+    <div className={`min-h-screen ${currentTheme.bgClass} text-[#f7f5ed] flex flex-col justify-between selection:bg-[#dfb15b]/30 w-full max-w-full overflow-x-hidden transition-colors duration-500`}>
+      {/* Buddhist Sacred Background Artwork Layer */}
+      <BuddhistBackground
+        themeId={settings.themeId || 'tinh-do'}
+        artId={settings.bgArtId ?? 'auto'}
+        opacity={settings.bgArtOpacity ?? 0.45}
+        enableBlur={settings.bgArtBlur ?? false}
+      />
+
       {/* Top Ambient Lotus Aura Background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-radial from-[#dfb15b]/10 via-[#0e3532]/20 to-transparent rounded-full blur-3xl opacity-70" />
+        <div
+          className="absolute -top-32 left-1/2 -translate-x-1/2 w-[550px] h-[550px] rounded-full blur-3xl opacity-75 transition-all duration-700 pointer-events-none"
+          style={{
+            background: `radial-gradient(circle, ${currentTheme.aura.from}24 0%, ${currentTheme.aura.via}30 45%, transparent 70%)`
+          }}
+        />
       </div>
 
       <div className="relative z-10 flex flex-col flex-1 w-full max-w-full overflow-x-hidden">
@@ -412,6 +446,9 @@ export default function App() {
           onOpenSettings={() => setShowSettingsModal(true)}
           onOpenAudioLab={() => setShowAudioLabModal(true)}
           onOpenIOSGuide={() => setShowIOSGuideModal(true)}
+          onOpenCalendar={() => setShowCalendarModal(true)}
+          onOpenThemeSelector={() => setShowThemeModal(true)}
+          theme={currentTheme}
         />
 
         {/* Main Chanting Workspace */}
@@ -440,6 +477,7 @@ export default function App() {
             onIncrementManual={handleManualIncrement}
             onOpenEditModal={() => setShowEditModal(true)}
             lastChantDetected={lastChantDetected}
+            theme={currentTheme}
           />
 
           {/* Target Progress Bar */}
@@ -540,6 +578,27 @@ export default function App() {
           settings={settings}
           onUpdateSettings={handleUpdateSettings}
           onClose={() => setShowSettingsModal(false)}
+          onOpenThemeSelector={() => setShowThemeModal(true)}
+        />
+      )}
+
+      {showCalendarModal && (
+        <OmmaniCalendar
+          onClose={() => setShowCalendarModal(false)}
+          onStartChantingFromCalendar={handleStartSession}
+          practiceHistory={history}
+        />
+      )}
+
+      {showThemeModal && (
+        <ThemeSelectorModal
+          currentThemeId={settings.themeId || 'tinh-do'}
+          onSelectTheme={handleSelectTheme}
+          currentArtId={settings.bgArtId ?? 'auto'}
+          onSelectArt={handleSelectArt}
+          artOpacity={settings.bgArtOpacity ?? 0.22}
+          onChangeArtOpacity={handleChangeArtOpacity}
+          onClose={() => setShowThemeModal(false)}
         />
       )}
     </div>

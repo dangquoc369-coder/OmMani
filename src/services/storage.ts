@@ -19,7 +19,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   allowShortPrefix: true,
   wakeLockEnabled: true,
   voiceSensitivity: 'normal',
-  voiceEngineMode: 'auto'
+  voiceEngineMode: 'auto',
+  themeId: 'tinh-do',
+  bgArtId: 'auto',
+  bgArtOpacity: 0.45,
+  bgArtBlur: false
 };
 
 export interface ActiveSessionState {

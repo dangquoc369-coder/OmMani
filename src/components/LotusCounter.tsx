@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Minus, Edit3, Mic, Sparkles, Hand } from 'lucide-react';
 import { CountingMode } from '../types';
+import { ZenTheme, getZenTheme } from '../data/themes';
 
 interface LotusCounterProps {
   count: number;
@@ -13,6 +14,7 @@ interface LotusCounterProps {
   onIncrementManual: (delta: number) => void;
   onOpenEditModal: () => void;
   lastChantDetected: string | null;
+  theme?: ZenTheme;
 }
 
 export const LotusCounter: React.FC<LotusCounterProps> = ({
@@ -24,7 +26,8 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
   onManualCount,
   onIncrementManual,
   onOpenEditModal,
-  lastChantDetected
+  lastChantDetected,
+  theme = getZenTheme('tinh-do')
 }) => {
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
 
@@ -67,9 +70,9 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
     <div className="relative flex flex-col items-center justify-center my-2 sm:my-4 md:my-6 select-none shrink-0">
       {/* Outer Glow Halo */}
       <div
-        className="absolute w-64 h-64 xs:w-72 xs:h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full transition-all duration-150 pointer-events-none"
+        className="absolute w-64 h-64 xs:w-72 xs:h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full transition-all duration-300 pointer-events-none"
         style={{
-          background: `radial-gradient(circle, rgba(223, 177, 91, ${auraGlow * 0.4}) 0%, rgba(16, 56, 53, 0) 70%)`,
+          background: `radial-gradient(circle, ${theme.aura.from}${Math.round(auraGlow * 100).toString(16).padStart(2, '0')} 0%, ${theme.aura.via}44 45%, transparent 70%)`,
           transform: `scale(${auraScale})`
         }}
       />
@@ -78,21 +81,21 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
       <motion.div
         whileTap={{ scale: mode === 'manual' ? 0.96 : 1 }}
         onClick={handleTap}
-        className={`relative w-56 h-56 xs:w-64 xs:h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-full flex flex-col items-center justify-center cursor-pointer transition-shadow shadow-2xl ${
-          mode === 'manual'
-            ? 'active:ring-4 active:ring-[#dfb15b]/40 bg-gradient-to-br from-[#0c2827] via-[#091e1d] to-[#061413] border-2 border-[#dfb15b]/40 hover:border-[#dfb15b]/70'
-            : 'bg-gradient-to-br from-[#0b2423] via-[#081a19] to-[#04100f] border-2 border-[#dfb15b]/30'
+        className={`relative w-56 h-56 xs:w-64 xs:h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-300 shadow-2xl ${
+          theme.disc.bg
+        } ${theme.disc.border} border-2 ${
+          mode === 'manual' ? `${theme.disc.activeRing} active:ring-4` : ''
         }`}
         style={{
           boxShadow: isListening && audioLevel > 15
-            ? '0 0 45px rgba(223, 177, 91, 0.35), inset 0 0 30px rgba(223, 177, 91, 0.2)'
-            : '0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 25px rgba(223, 177, 91, 0.08)'
+            ? `0 0 45px ${theme.disc.shadowGlow}, inset 0 0 30px ${theme.disc.shadowGlow}`
+            : `0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 25px ${theme.disc.shadowGlow}`
         }}
       >
         {/* Background Sacred Lotus Petals Geometry */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
           <svg viewBox="0 0 200 200" className="w-48 h-48 xs:w-56 xs:h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 animate-spin-slow">
-            <g stroke="#dfb15b" fill="none" strokeWidth="0.8">
+            <g stroke={theme.disc.lotusPetalStroke} fill="none" strokeWidth="0.8">
               {[0, 30, 60, 90, 120, 150].map(angle => (
                 <ellipse
                   key={angle}
@@ -113,11 +116,9 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
         <div className="absolute inset-2 sm:inset-3 pointer-events-none">
           {beads.map((_, i) => {
             const angle = (i / beadCount) * 2 * Math.PI;
-            // Radius as percentage
             const r = 48; // percent
             const left = 50 + r * Math.sin(angle);
             const top = 50 - r * Math.cos(angle);
-            // Highlight bead based on progress in current 108 cycle
             const cycleProgress = (count % 108) / 108;
             const beadProgress = i / beadCount;
             const isFilled = cycleProgress >= beadProgress && count > 0;
@@ -129,8 +130,8 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
                 style={{
                   left: `${left}%`,
                   top: `${top}%`,
-                  backgroundColor: isFilled ? '#dfb15b' : 'rgba(223, 177, 91, 0.18)',
-                  boxShadow: isFilled ? '0 0 6px #dfb15b' : 'none'
+                  backgroundColor: isFilled ? theme.disc.beadFilled : theme.disc.beadUnfilled,
+                  boxShadow: isFilled ? `0 0 7px ${theme.disc.beadGlow}` : 'none'
                 }}
               />
             );
@@ -141,12 +142,13 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
         {ripples.map(r => (
           <span
             key={r.id}
-            className="absolute rounded-full pointer-events-none bg-[#dfb15b]/30 animate-ping"
+            className="absolute rounded-full pointer-events-none animate-ping opacity-75"
             style={{
               left: r.x - 20,
               top: r.y - 20,
               width: 40,
-              height: 40
+              height: 40,
+              backgroundColor: theme.accent.gold
             }}
           />
         ))}
@@ -154,7 +156,10 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
         {/* Center Content */}
         <div className="relative z-10 flex flex-col items-center justify-center text-center px-4">
           {/* Subtle Label / Status */}
-          <div className="flex items-center gap-1.5 mb-1 text-[11px] sm:text-xs font-medium text-[#dfb15b]/90 uppercase tracking-widest">
+          <div
+            className="flex items-center gap-1.5 mb-1 text-[11px] sm:text-xs font-medium uppercase tracking-widest"
+            style={{ color: theme.accent.gold }}
+          >
             {mode === 'voice' ? (
               <>
                 <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
@@ -162,7 +167,7 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
               </>
             ) : (
               <>
-                <Hand className="w-3.5 h-3.5 text-[#dfb15b]" />
+                <Hand className="w-3.5 h-3.5" style={{ color: theme.accent.gold }} />
                 <span>Chạm Để Đếm (+1)</span>
               </>
             )}
@@ -174,19 +179,19 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
             initial={{ scale: 0.88, opacity: 0.7 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 350, damping: 20 }}
-            className="font-serif-sacred text-5xl xs:text-6xl sm:text-7xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-[#ffffff] via-[#faeed1] to-[#dfb15b] drop-shadow-md py-1"
+            className={`font-counter text-5xl xs:text-6xl sm:text-7xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b ${theme.disc.countGradient} drop-shadow-md py-1`}
           >
             {count.toLocaleString('vi-VN')}
           </motion.div>
 
           {/* Target Progress Subtext */}
           {target > 0 ? (
-            <div className="text-xs sm:text-sm text-[#9eb9b6] mt-0.5 font-medium">
-              Mục tiêu: <span className="text-[#faeed1] font-semibold">{target.toLocaleString('vi-VN')}</span>
-              <span className="text-[#dfb15b] ml-1.5 font-bold">({percentage}%)</span>
+            <div className="text-xs sm:text-sm mt-0.5 font-medium" style={{ color: theme.accent.mutedText }}>
+              Mục tiêu: <span className="font-semibold text-white">{target.toLocaleString('vi-VN')}</span>
+              <span className="ml-1.5 font-bold" style={{ color: theme.accent.gold }}>({percentage}%)</span>
             </div>
           ) : (
-            <div className="text-xs text-[#9eb9b6] mt-0.5">
+            <div className="text-xs mt-0.5 font-sans-viet" style={{ color: theme.accent.mutedText }}>
               Vô lượng (Không giới hạn)
             </div>
           )}
@@ -198,10 +203,17 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="mt-2 px-2.5 py-0.5 rounded-full bg-[#dfb15b]/20 border border-[#dfb15b]/40 text-[11px] text-[#faeed1] flex items-center gap-1"
+                className="mt-2 px-3 py-1 rounded-full border text-xs flex items-center gap-1.5 shadow-lg backdrop-blur-sm"
+                style={{
+                  backgroundColor: `${theme.accent.gold}22`,
+                  borderColor: `${theme.accent.gold}66`,
+                  color: theme.accent.text
+                }}
               >
-                <Sparkles className="w-3 h-3 text-[#dfb15b]" />
-                <span className="truncate max-w-[170px]">{lastChantDetected}</span>
+                <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accent.gold }} />
+                <span className="truncate max-w-[190px] font-serif-sacred font-semibold tracking-wide">
+                  {lastChantDetected}
+                </span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -213,28 +225,31 @@ export const LotusCounter: React.FC<LotusCounterProps> = ({
         <button
           onClick={() => onIncrementManual(-1)}
           disabled={count <= 0}
-          className="flex items-center gap-1 text-xs px-3 py-2 rounded-xl bg-[#0c2423] hover:bg-[#123634] text-[#cfdcda] disabled:opacity-30 border border-[#dfb15b]/20 hover:border-[#dfb15b]/40 transition active:scale-95 shadow-md"
+          className={`flex items-center gap-1 text-xs px-3 py-2 rounded-xl ${theme.accent.cardBg} ${theme.accent.cardBorder} border hover:opacity-90 disabled:opacity-30 transition active:scale-95 shadow-md`}
+          style={{ color: theme.accent.text }}
           title="Giảm 1 lần (sửa khi đếm dư)"
         >
-          <Minus className="w-3.5 h-3.5 text-[#dfb15b]" />
+          <Minus className="w-3.5 h-3.5" style={{ color: theme.accent.gold }} />
           <span>-1</span>
         </button>
 
         <button
           onClick={onOpenEditModal}
-          className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-[#0e2c2a] hover:bg-[#154240] text-[#faeed1] border border-[#dfb15b]/30 hover:border-[#dfb15b]/60 transition active:scale-95 shadow-md font-medium"
+          className={`flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl ${theme.accent.cardBg} ${theme.accent.cardBorder} border hover:opacity-90 transition active:scale-95 shadow-md font-medium`}
+          style={{ color: theme.accent.text }}
           title="Chỉnh sửa số đếm thủ công"
         >
-          <Edit3 className="w-3.5 h-3.5 text-[#dfb15b]" />
+          <Edit3 className="w-3.5 h-3.5" style={{ color: theme.accent.gold }} />
           <span>Sửa số đếm</span>
         </button>
 
         <button
           onClick={() => onIncrementManual(1)}
-          className="flex items-center gap-1 text-xs px-3 py-2 rounded-xl bg-[#0c2423] hover:bg-[#123634] text-[#cfdcda] border border-[#dfb15b]/20 hover:border-[#dfb15b]/40 transition active:scale-95 shadow-md"
+          className={`flex items-center gap-1 text-xs px-3 py-2 rounded-xl ${theme.accent.cardBg} ${theme.accent.cardBorder} border hover:opacity-90 transition active:scale-95 shadow-md`}
+          style={{ color: theme.accent.text }}
           title="Tăng 1 lần (bổ sung khi đếm thiếu)"
         >
-          <Plus className="w-3.5 h-3.5 text-[#dfb15b]" />
+          <Plus className="w-3.5 h-3.5" style={{ color: theme.accent.gold }} />
           <span>+1</span>
         </button>
       </div>

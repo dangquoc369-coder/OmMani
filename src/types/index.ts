@@ -10,6 +10,7 @@ export interface ChantItem {
   description?: string;
   defaultTarget: number;  // typically 108
   keywords: string[];     // keywords for fuzzy speech recognition
+  mantraCalligraphy?: string; // Calligraphic sacred mantra text for aesthetic Buddhist display
   isCustom?: boolean;
 }
 
@@ -38,6 +39,24 @@ export interface DailyStat {
 
 export type VoiceEngineMode = 'auto' | 'vad_mic' | 'speech_text';
 
+export type BackgroundThemeId =
+  | 'tinh-do'
+  | 'thien-mac'
+  | 'huong-tram'
+  | 'tuyet-son'
+  | 'truc-lam'
+  | 'bach-lien'
+  | 'hu-khong'
+  | 'hoang-hon';
+
+export type BuddhistArtId =
+  | 'auto'          // Tự động phù hợp theo chủ đề nền thiền
+  | 'buddha-bodhi'  // Đức Bổn Sư Thích Ca tĩnh tọa cội Bồ Đề
+  | 'quan-am'       // Đức Quán Thế Âm Bồ Tát ngự tòa sen
+  | 'phap-luan'     // Bánh xe Pháp Luân & Mạn Đà La kim sắc
+  | 'co-tu'         // Cổ Tự U Tịch trong sương nguyệt
+  | 'none';         // Không dùng tranh vẽ (chỉ dùng màu nền tĩnh)
+
 export interface AppSettings {
   soundEnabled: boolean;
   soundType: 'woodblock' | 'bell' | 'both' | 'silent';
@@ -49,6 +68,10 @@ export interface AppSettings {
   wakeLockEnabled: boolean;
   voiceSensitivity: 'high' | 'normal' | 'low';
   voiceEngineMode: VoiceEngineMode; // 'auto' | 'vad_mic' | 'speech_text'
+  themeId: BackgroundThemeId; // Serene Buddhist background theme
+  bgArtId?: BuddhistArtId;    // Buddhist sacred background artwork
+  bgArtOpacity?: number;      // 0.1 to 0.5 (default 0.22)
+  bgArtBlur?: boolean;        // Soft ambient blur effect
 }
 
 export interface SpeechDiagnosticInfo {

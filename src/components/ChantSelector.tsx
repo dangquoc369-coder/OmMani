@@ -54,6 +54,11 @@ export const ChantSelector: React.FC<ChantSelectorProps> = ({
               <h2 className="text-base sm:text-lg font-bold text-[#fbf6e9] truncate font-serif-sacred tracking-wide">
                 {selectedChant.title}
               </h2>
+              {selectedChant.mantraCalligraphy && (
+                <div className="font-calligraphy text-xs sm:text-sm text-[#dfb15b] tracking-wider truncate mt-0.5">
+                  {selectedChant.mantraCalligraphy}
+                </div>
+              )}
             </div>
           </div>
 
@@ -66,7 +71,7 @@ export const ChantSelector: React.FC<ChantSelectorProps> = ({
         </div>
 
         {selectedChant.description && (
-          <p className="mt-2 text-[12px] text-[#8ea8a5] line-clamp-1 border-t border-[#dfb15b]/10 pt-1.5 italic">
+          <p className="mt-2 text-[12px] text-[#9eb9b6] font-mantra line-clamp-1 border-t border-[#dfb15b]/10 pt-1.5 italic leading-relaxed">
             "{selectedChant.description}"
           </p>
         )}
@@ -81,8 +86,8 @@ export const ChantSelector: React.FC<ChantSelectorProps> = ({
           />
           <div className="absolute left-4 right-4 top-full mt-2 z-50 bg-[#091f1e] border border-[#dfb15b]/30 rounded-2xl p-2 shadow-2xl max-h-80 overflow-y-auto">
             <div className="p-2 border-b border-[#dfb15b]/15 flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#dfb15b] uppercase tracking-wider">
-                Chọn danh hiệu Phật, Bồ Tát
+              <span className="text-xs font-semibold text-[#dfb15b] uppercase tracking-wider font-serif-sacred">
+                Chọn Danh Hiệu Phật, Bồ Tát
               </span>
               <button
                 onClick={(e) => {
@@ -119,15 +124,20 @@ export const ChantSelector: React.FC<ChantSelectorProps> = ({
                         : 'hover:bg-[#123634] text-[#cfdcda]'
                     }`}
                   >
-                    <div className="flex flex-col text-left">
+                    <div className="flex flex-col text-left overflow-hidden mr-2">
                       <div className="flex items-center gap-2">
                         {getCategoryBadge(chant.category)}
-                        <span className="text-sm font-semibold tracking-wide">
+                        <span className="text-sm font-semibold tracking-wide font-serif-sacred">
                           {chant.title}
                         </span>
                       </div>
+                      {chant.mantraCalligraphy && (
+                        <span className="text-xs font-calligraphy text-[#dfb15b] tracking-wide mt-0.5">
+                          {chant.mantraCalligraphy}
+                        </span>
+                      )}
                       {chant.description && (
-                        <span className="text-[11px] text-[#8ea8a5] line-clamp-1 mt-0.5">
+                        <span className="text-[11px] text-[#8ea8a5] line-clamp-1 mt-0.5 leading-relaxed font-sans-viet">
                           {chant.description}
                         </span>
                       )}
