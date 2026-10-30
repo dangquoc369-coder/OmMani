@@ -1,17 +1,16 @@
 import { BuddhistArtId, BackgroundThemeId } from '../types';
+import {
+  BUDDHA_BODHI_DATA_URI,
+  QUAN_AM_DATA_URI,
+  PHAP_LUAN_DATA_URI,
+  CO_TU_DATA_URI
+} from './buddhistArtData';
 
-// Resolve public asset path with Vite base URL support.
-// This avoids Vite bundle-time "Failed to resolve import" errors if local assets differ.
-const getArtUrl = (fileName: string): string => {
-  const base = import.meta.env.BASE_URL || './';
-  const cleanBase = base.endsWith('/') ? base : `${base}/`;
-  return `${cleanBase}assets/images/${fileName}`;
-};
-
-const buddhaBodhiImg = getArtUrl('buddha-bodhi.jpg');
-const quanAmImg = getArtUrl('quan-am.jpg');
-const phapLuanImg = getArtUrl('phap-luan.jpg');
-const coTuImg = getArtUrl('co-tu.jpg');
+// Embedded high-fidelity sacred artworks guarantee 100% visibility on local VS Code, GitHub Pages, and offline PWA
+const buddhaBodhiImg = BUDDHA_BODHI_DATA_URI;
+const quanAmImg = QUAN_AM_DATA_URI;
+const phapLuanImg = PHAP_LUAN_DATA_URI;
+const coTuImg = CO_TU_DATA_URI;
 
 export interface BuddhistArtItem {
   id: BuddhistArtId;
